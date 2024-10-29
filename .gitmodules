@@ -1,0 +1,6 @@
+[submodule "OpenSpace"]
+	path = OpenSpace
+	url = https://github.com/OpenSpace/OpenSpace.git
+[submodule "OpenSpace-WebGuiFrontend"]
+	path = OpenSpace-WebGuiFrontend
+	url = https://github.com/OpenSpace/OpenSpace-WebGuiFrontend.git
