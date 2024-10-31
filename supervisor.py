@@ -90,16 +90,16 @@ def setupArgparse():
         "--openspaceDir",
         dest="osdir",
         type=str,
-        help="Specifies the OpenSpace directory in which to run.",
-        default="C:/OpenSpace",
+        help="Specifies the OpenSpace directory relative to this script.",
+        default="OpenSpace",
         required=False
     )
     parser.add_argument(
         "--webGuiDir",
         dest="webguidir",
         type=str,
-        help="Specifies the OpenSpace WebGuiFrontend directory.",
-        default="C:/OpenSpace-WebGuiFrontend",
+        help="Specifies the OpenSpace WebGuiFrontend directory relative to this script.",
+        default="OpenSpace-WebGuiFrontend",
         required=False
     )
     parser.add_argument(
@@ -425,15 +425,20 @@ if __name__ == "__main__":
     for i in range(0, args.renderCapacity):
         Processes.append(OsProcess())
     print(f"Render capacity: {args.renderCapacity} instances.")
-    openspaceExec = f"{args.osdir}/{OpenSpaceExecRelativeDir}/OpenSpace.exe"
+    scriptDir = os.path.realpath(os.path.dirname(__file__))
+    openspaceExec = f"{scriptDir}/{args.osdir}/{OpenSpaceExecRelativeDir}/OpenSpace.exe"
     if not os.path.exists(openspaceExec):
         raise Exception(f"Could not find OpenSpace exe '{openspaceExec}'")
-    openspaceFrontendDir = f"{args.webguidir}"
+    openspaceFrontendDir = f"{scriptDir}/{args.webguidir}"
     if not os.path.exists(openspaceFrontendDir):
         raise Exception(f"Could not find frontend gui '{openspaceFrontendDir}'")
-    openspaceSignaling = f"{args.webguidir}/src/signalingserver"
+    openspaceSignaling = f"{scriptDir}/{args.webguidir}/src/signalingserver"
     if not os.path.exists(openspaceSignaling):
         raise Exception(f"Could not find signaling server '{openspaceSignaling}'")
 
-    asyncio.run(mainAsync(args.osdir, openspaceFrontendDir, openspaceSignaling))
+    asyncio.run(mainAsync(
+        f"{scriptDir}/{args.osdir}",
+        openspaceFrontendDir,
+        openspaceSignaling)
+    )
     print("Quit __main__")
