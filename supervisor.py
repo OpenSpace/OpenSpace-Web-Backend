@@ -1,6 +1,6 @@
 ##########################################################################################
 #                                                                                        #
-# OpenSpace Visual Testing                                                               #
+# OpenSpace Streaming                                                                    #
 #                                                                                        #
 # Copyright (c) 2024                                                                     #
 #                                                                                        #
@@ -132,15 +132,16 @@ def runOpenspace(executable, baseDir, instanceId):
     """
     global Processes
     print(f"Starting OpenSpace ID {instanceId}")
-    workingDirectory = os.path.normpath(executable)
+    workingDirectory = os.path.dirname(os.path.normpath(executable))
+    sgctConfigFile = os.path.normpath(f"{baseDir}/config/remote_gstreamer_output.json")
     process = subprocess.Popen(
         [
             os.path.normpath(executable),
-            "--config", os.path.normpath(f"{baseDir}/config/remote_gstreamer_output.json"),
+            "--config", sgctConfigFile,
             "--profile", "default",
             "--bypassLauncher"
         ],
-        cwd=os.path.normpath(os.path.dirname(executable)),
+        cwd=workingDirectory,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE
     )
@@ -249,8 +250,8 @@ async def websocketServer(stopEvent_main, openspaceBaseDir):
         openspaceBaseDir=openspaceBaseDir,
         stopEvent_main=stopEvent_main
     )
-    async with websockets.serve(boundHandler, "localhost", 8765):
-        print("WebSocket server started on ws://localhost:8765")
+    async with websockets.serve(boundHandler, "localhost", 4699):
+        print("WebSocket server started on ws://localhost:4699")
         await stopEvent_main.wait()  # Wait until stop event is set
     print(f"Quitting websocketServer.")
 
