@@ -55,9 +55,9 @@ If desired, the Supervisor can be set as an application that automatically runs 
 ## Viewing OpenSpace Streaming in a Browser
 When all of the servers are working together, a user will connect to the Web Frontend Server and go through an easy-to-use interface. When the OpenSpace streaming session runs, their browser will internally open a URL to the rendering server; the user will not need to enter or see this URL.
 
-If someone were to enter this manually in a browser, it would look like:
-`192.168.1.44:4690/frontend/#/streaming?id=0`
-Here, the URL parameter `id` is the unique zero-based ID discussed in the API document mentioned above.
+If someone were to enter this manually in a browser, it would look like:<br>`192.168.1.44:4690/frontend/#/streaming?id=0`<br>
+
+Here, the URL parameter `id` is the unique zero-based ID discussed in the API document mentioned above (defaults to zero if not provided).
 
 Once the WebGui loads in the browser, open the streaming menu (icon of a computer with an arrow on it), and click "Join session". Note that this step may be automated-away in the future.
 
@@ -69,7 +69,7 @@ If there is a problem, refresh the browser and Join the session again. It won’
 Two separate OpenSpace windows run with a single instance of OpenSpace. This is necessary for the frame encoding; with only one window running, most frames are dropped.
 
 #### Adjustments to Video Quality
-Currently the streaming framerate runs as high as possible, but with multiple instances running frames will be dropped (blinking black frames). To prevent this, go to `Settings -> Render Engine -> Framerate Limit` in the WebGui and set to 30 fps or so.
+Currently the streaming framerate runs as high as possible, but with multiple instances running, frames will be dropped (manifests as blinking black frames). To prevent this, go to `Settings -> Render Engine -> Framerate Limit` in the WebGui and set to 30 fps or so.
 
 Video resolution can be set in the `config/remote_gstreamer_output.json` sgct configuration file (side note: currently this file is the only config file that the WebRTC streaming version can run). Set the `"size"` values in both window entries to the desired resolution.
 
