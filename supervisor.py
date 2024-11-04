@@ -181,6 +181,15 @@ def runOpenspace(executable, baseDir, instanceId):
     Processes[instanceId].setState(State.RUNNING)
     print(f"OpenSpace ID {instanceId} INITIALIZING -> RUNNING")
 
+    async def waitForInstanceToStop(procHandle):
+        while procHandle.poll() is None:
+            await asyncio.sleep(2.0)
+
+    # Wait until this OpenSpace instance has stopped (e.g. via the frontend gui)
+    asyncio.new_event_loop().run_until_complete(waitForInstanceToStop(process))
+    Processes[instanceId].setState(State.IDLE)
+    print(f"OpenSpace ID {instanceId} RUNNING -> IDLE")
+
 
 def setTimerForDeinitializationPeriod(idStopped):
     global Processes
