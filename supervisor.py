@@ -24,6 +24,7 @@
 
 import argparse
 import asyncio
+from enum import Enum, auto
 import functools
 import glob
 import json
@@ -43,9 +44,17 @@ import websockets
 from openspace import Api
 
 
+class State(Enum):
+    IDLE = auto()
+    INITIALIZING = auto()
+    RUNNING = auto()
+    DEINITIALIZING = auto()
+    INVALID = auto()
+
+
 class OsProcess:
     def __init__(self):
-        self.state = "IDLE"
+        self.state = State.IDLE
         self.handle = None
         self.stopSignal = None
         self.thread = None
@@ -55,6 +64,18 @@ class OsProcess:
 
     def currentState(self):
         return self.state
+
+    def currentStateString(self):
+        if self.state == State.IDLE:
+            return "IDLE"
+        elif self.state == State.INITIALIZING:
+            return "INITIALIZING"
+        elif self.state == State.RUNNING:
+            return "RUNNING"
+        elif self.state == State.DEINITIALIZING:
+            return "DEINITIALIZING"
+        else:
+            return "INVALID"
 
     def setProcessHandle(self, handle):
         self.handle = handle
@@ -157,72 +178,101 @@ def runOpenspace(executable, baseDir, instanceId):
         openspace = await os_api.singleReturnLibrary()
 
     asyncio.new_event_loop().run_until_complete(mainLoop())
-    Processes[instanceId].setState("RUNNING")
+    Processes[instanceId].setState(State.RUNNING)
     print(f"OpenSpace ID {instanceId} INITIALIZING -> RUNNING")
 
 
 def setTimerForDeinitializationPeriod(idStopped):
     global Processes
-    Processes[idStopped].setState("IDLE")
+    Processes[idStopped].setState(State.IDLE)
     print("timer expired")
 
 
 async def processMessage(websocket, message, openspaceBaseDir, stopEvent_main):
     global Processes
-    command = message.split(" ", 1)[0]
-    print(f"Received command: {command}")
-    if command == "START":
-        startId = -1
-        for i in range(0, len(Processes)):
-            if Processes[i].currentState() == "IDLE":
-                startId = i
-                break
-        if startId != -1:
-            if startId > 0:
-                openspaceBaseDir = f"{openspaceBaseDir}/../OpenSpace_s{startId}"
-            Processes[startId].setThread(Thread(
-                    target=runOpenspace,
-                    args= [
-                        f"{openspaceBaseDir}/{OpenSpaceExecRelativeDir}/OpenSpace.exe",
-                        openspaceBaseDir,
-                        startId
-                    ]
+    try:
+        json_data = json.loads(message)
+        command = json_data['command']
+        print(f"Received command: {command}")
+        result = json.loads("""{
+            "command": "START",
+            "error": "none",
+            "id": 0
+        }""")
+        result['command'] = command
+        if command == "START":
+            startId = -1
+            for i in range(0, len(Processes)):
+                if Processes[i].currentState() == State.IDLE:
+                    startId = i
+                    break
+            if startId != -1:
+                if startId > 0:
+                    openspaceBaseDir = f"{openspaceBaseDir}/../OpenSpace_s{startId}"
+                Processes[startId].setThread(Thread(
+                        target=runOpenspace,
+                        args= [
+                            f"{openspaceBaseDir}/{OpenSpaceExecRelativeDir}/OpenSpace.exe",
+                            openspaceBaseDir,
+                            startId
+                        ]
+                    )
                 )
+                Processes[startId].thread.daemon = True
+                Processes[startId].thread.start()
+                Processes[startId].setState(State.INITIALIZING)
+            else:
+                result['error'] = "no available slots"
+            result['id'] = startId
+            await sendMessage(websocket, json.dumps(result))
+        elif command == "STOP":
+            idToStop = json_data['id']
+            result['id'] = idToStop
+            if idToStop < len(Processes):
+                if Processes[idToStop].currentState() == State.IDLE:
+                    result['error'] = "not running"
+                await sendMessage(websocket, json.dumps(result))
+                if Processes[idToStop].currentState() != State.IDLE:
+                    Processes[idToStop].setState(State.DEINITIALIZING)
+                    timer = Timer(5.0, setTimerForDeinitializationPeriod, args=(idToStop,))
+                    timer.start()
+                    terminateOpenSpaceInstance(idToStop)
+            else:
+                result['error'] = "invalid id"
+                await sendMessage(websocket, json.dumps(result))
+        elif command == "STATUS":
+            idForStatus = json_data['id']
+            if idForStatus < len(Processes):
+                result['status'] = Processes[idForStatus].currentStateString()
+            else:
+                result['status'] = State.INVALID
+                result['error'] = "invalid id"
+            await sendMessage(websocket, json.dumps(result))
+        elif command == "SERVER_STATUS":
+            nRunning = 0
+            for i in range(0, len(Processes)):
+                if Processes[i].currentState() != State.IDLE:
+                    nRunning += 1
+            result['running'] = nRunning
+            result['total'] = len(Processes)
+            await sendMessage(websocket, json.dumps(result))
+        else:
+            print(f"Invalid message received: '{message}'")
+            await sendMessage(
+                websocket,
+                json.dumps({"error": f"invalid message received: {command}"})
             )
-            Processes[startId].thread.daemon = True
-            Processes[startId].thread.start()
-            Processes[startId].setState("INITIALIZING")
-        await sendMessage(websocket, f"{str(startId)}")
-    elif command == "STOP":
-        idToStop = int(message.split(" ", 1)[1])
-        if idToStop < len(Processes):
-            await sendMessage(websocket, f"{str(idToStop)}")
-            Processes[idToStop].setState("DEINITIALIZING")
-            timer = Timer(5.0, setTimerForDeinitializationPeriod, args=(idToStop,))
-            timer.start()
-            terminateOpenSpaceInstance(idToStop)
-        else:
-            await sendMessage(websocket, f"{str(-1)}")
-    elif command == "STATUS":
-        idForStatus = int(message.split(" ", 1)[1])
-        if idForStatus < len(Processes):
-            status = Processes[idForStatus].currentState()
-        else:
-            status = "INVALID"
-        await sendMessage(websocket, status)
-    elif command == "SERVER_STATUS":
-        nRunning = 0
-        for i in range(0, len(Processes)):
-            if Processes[i] != "IDLE":
-                nRunning += 1
-        await sendMessage(websocket, f"{nRunning}/{len(Processes)}")
-    else:
-        print(f"Invalid message received: '{message}'")
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error {e}")
+        await sendMessage(
+            websocket,
+            json.dumps({"error": "json decode error"})
+        )
 
 
 def terminateOpenSpaceInstance(id):
-    curr = Processes[id].currentState()
-    if curr == "INITIALIZING" or curr == "RUNNING" or curr == "DEINITIALIZING":
+    c = Processes[id].currentState()
+    if c == State.INITIALIZING or c == State.RUNNING or c == State.DEINITIALIZING:
         Processes[id].getHandle().kill()
 
 
