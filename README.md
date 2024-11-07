@@ -52,6 +52,8 @@ If desired, the Supervisor can be set as an application that automatically runs 
 ### Supervisor Communications
 [This API document](https://docs.google.com/document/d/1B5lUBf3817arQpV4Vdz7yopb8SBSFIK_DrQTK7n07ns) shows the overall architecture and the Supervisor's place within it. The document also lists all message types, and a typical handshake diagram between the different components in the streaming setup.
 
+The *testing/* subdirectory in this repo contains scripts to send messages to the supervisor for test purposes when running the server manually.
+
 ## Adding an OpenSpace Instance on the WebRTC Rendering Server
 A rendering server is designed to simultaneously run multiple instances of OpenSpace--one for each user/session. In order for it to run smoothly, this requires that each instance have its own install directory, with executables, configuration files, etc.
 
