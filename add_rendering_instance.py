@@ -68,12 +68,10 @@ def verifyCorrectOpenSpaceDir(currentDir):
     expectedDir_openspace = "OpenSpace"
     expectedDir_webGui = "OpenSpace-WebGuiFrontend"
     subs = getSubdirs(currentDir)
-    if expectedDir_openspace in subs and expectedDir_webGui in subs:
-        return True
-    else:
-        print(f"Did not find '{expectedDir_openspace}' and '{expectedDir_webGui}' dirs.")
-        print(f"This script can only run in the base OpenSpace-Web-Backend directory.")
-        return False
+    if (not expectedDir_openspace in subs) or (not expectedDir_webGui in subs):
+        raise Exception(f"Did not find '{expectedDir_openspace}' and "
+                        f"'{expectedDir_webGui}' dirs. This script can only run in the "
+                        "base OpenSpace-Web-Backend directory.")
 
 
 def getSubdirs(directory):
@@ -140,10 +138,17 @@ def verifyEnoughDiskSpace(scriptDir):
     print(f" {usedCalculation:.2f} GB.")
     bufferSpace = 0.5 # Want at least this much GB space left after copy
     if diskAvailable < (usedCalculation + bufferSpace):
-        print("Not enough space on this filesystem for another OpenSpace instance.")
-        return False
-    else:
-        return True
+        raise Exception("Not enough space on this filesystem for another instance.")
+
+
+def verifyOpenSpaceSyncEnvironmentVariable():
+    for key, value in os.environ.items():
+        if key == "OPENSPACE_SYNC":
+            return
+    raise Exception("The environment variable 'OPENSPACE_SYNC' must be defined "
+                    "in order to run multiple instances that share sync/. Note "
+                    "that on Windows this must be defined in the User variables "
+                    "rather than the system variables.")
 
 
 def doIndividualDirectoryCopy(source, dest):
@@ -183,7 +188,8 @@ def replaceStringInConfigFile(filePath, searchTrigger, whatToReplace, replaceWit
                         replacing a line with a specific port number. Such a line is not
                         unique to the file, but the searchTrigger can specify replacing
                         the port number line that is directly below the line specified
-                        by the search Trigger.
+                        by the search Trigger. If a match for the search trigger is not
+                        found, then no text replacement will be made (no file write)
       - whatToReplace : A regex string for matching the string to replace. This string
                         will be replaced by the following parameter.
       - replaceWith : An exact (not regex) string that will replace the match for the
@@ -216,10 +222,9 @@ def replaceStringInConfigFile(filePath, searchTrigger, whatToReplace, replaceWit
 
 if __name__ == "__main__":
     scriptDir = os.path.realpath(os.path.dirname(__file__))
-    if not verifyCorrectOpenSpaceDir(scriptDir):
-        quit(-1)
-    if not verifyEnoughDiskSpace(scriptDir):
-        quit(-2)
+    verifyCorrectOpenSpaceDir(scriptDir)
+    verifyEnoughDiskSpace(scriptDir)
+    verifyOpenSpaceSyncEnvironmentVariable()
     newInstanceNum = calculateNewInstanceNumber(scriptDir)
     newInstanceDir = f"OpenSpace_s{newInstanceNum}"
 
