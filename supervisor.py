@@ -44,7 +44,23 @@ import websockets
 from openspace import Api
 
 
+"""
+This Supervisor script continuously runs on a streaming rendering server.
+Upon startup, it starts the WebGUI Frontend served by node.js in a separate terminal,
+and the WebRTC signaling server in another terminal.
+It communicates with a web backend server via a websocket connection. It sends messages
+only as a response to received commands.
+A separate API document covers the API and functionality in greater detail.
+"""
+
+
+OpenSpaceExecRelativeDir = "bin/RelWithDebInfo"
+OpenSpaceCfgRelativeDir = "config"
+Processes = []
+
+
 class State(Enum):
+    # Running state for an OpenSpace instance
     IDLE = auto()
     INITIALIZING = auto()
     RUNNING = auto()
@@ -53,6 +69,10 @@ class State(Enum):
 
 
 class OsProcess:
+    """
+    Class for running and tracking an individual OpenSpace executable instance,
+    with the state and thread it runs in.
+    """
     def __init__(self):
         self.state = State.IDLE
         self.handle = None
@@ -94,11 +114,6 @@ class OsProcess:
 
     def thread(self):
         return self.thread
-
-OpenSpaceExecRelativeDir = "bin/RelWithDebInfo"
-OpenSpaceCfgRelativeDir = "config"
-Processes = []
-
 
 
 def setupArgparse():
@@ -171,7 +186,7 @@ def runOpenspace(executable, baseDir, instanceId):
     time.sleep(10)
 
     async def mainLoop():
-        # Wait until Openspace has initialized
+        # Loop for waiting until Openspace has initialized
         print(f"Establishing API connection for ID {instanceId}...")
         os_api = Api("localhost", 4681)
         os_api.connect()
@@ -197,7 +212,10 @@ def setTimerForDeinitializationPeriod(idStopped):
     print("timer expired")
 
 
-async def processMessage(websocket, message, openspaceBaseDir, stopEvent_main):
+async def processMessage(websocket, message, openspaceBaseDir):
+    """
+    Handle JSON messages from web backend, execute command, then send response
+    """
     global Processes
     try:
         json_data = json.loads(message)
@@ -208,7 +226,7 @@ async def processMessage(websocket, message, openspaceBaseDir, stopEvent_main):
             "error": "none",
             "id": 0
         }""")
-        result['command'] = command
+        result['command'] = command # echo the command back
         if command == "START":
             startId = -1
             for i in range(0, len(Processes)):
@@ -290,14 +308,13 @@ async def sendMessage(websocket, message):
     await websocket.send(message)
 
 
-async def receiveProcess(websocket, openspaceBaseDir, stopEvent_main):
+async def receiveProcess(websocket, openspaceBaseDir):
     try:
         message = await websocket.recv()
         await processMessage(
             websocket,
             message,
-            openspaceBaseDir,
-            stopEvent_main
+            openspaceBaseDir
         )
     except websockets.ConnectionClosed:
         print("Connection closed")
@@ -306,8 +323,7 @@ async def receiveProcess(websocket, openspaceBaseDir, stopEvent_main):
 async def websocketServer(stopEvent_main, openspaceBaseDir):
     boundHandler = functools.partial(
         receiveProcess,
-        openspaceBaseDir=openspaceBaseDir,
-        stopEvent_main=stopEvent_main
+        openspaceBaseDir
     )
     async with websockets.serve(boundHandler, "localhost", 4699):
         print("WebSocket server started on ws://localhost:4699")
@@ -337,6 +353,10 @@ def keyPressed():
 
 
 async def webGuiFrontendServer(stopEvent, workingDir):
+    """
+    Start WebGUI Frontend node.js server in the workingDir in a separate terminal.
+    Runs until the stopEvent signal is set.
+    """
     execPath = os.path.normpath(workingDir)
     if os.name == "nt":
         execArgs = ["start", "powershell", "npm", "start"]
@@ -360,6 +380,10 @@ async def webGuiFrontendServer(stopEvent, workingDir):
 
 
 async def signalingServer(stopEvent, workingDir):
+    """
+    Start WebRTC signaling server in the workingDir in a separate terminal.
+    Runs until the stopEvent signal is set.
+    """
     execPath = os.path.normpath(workingDir)
     if os.name == "nt":
         execArgs = [
@@ -430,6 +454,9 @@ async def terminateProcess(processName, processElems, ignoreElems=[]):
 
 
 async def shutdownOnKeypress(stopEvent):
+    """
+    If 'q' key is pressed, signal the stopEvent which is used to stop other processes
+    """
     while True:
         if keyPressed():
             key = str(msvcrt.getch())
@@ -449,6 +476,18 @@ async def shutdownTaskAndVerify(taskHandle, taskName):
 
 
 async def mainAsync(openspaceBaseDir, openspaceFrontendDir, signalingServerDir):
+    """
+    Main asynchronous loop to run:
+      server for websocket comms with web backend
+      WebGUI frontend node.js server
+      WebRTC signaling server
+    After starting these processes, waits for a keypress to initiate shutdown.
+    Parameters:
+      - openspacceBaseDir : absolute path to the base dir of the OpenSpace installation
+      - openspaceFrontendDir : absolute path to the base dir of WebGUI Frontend
+      - signalingServerDir : absolute path to the directory where the signaling server
+                             code resides (currently within the WebGUI Frontend dir)
+    """
     global Processes
     stopEvent_main = asyncio.Event()
     for i in range(0, len(Processes)):
