@@ -323,7 +323,7 @@ async def receiveProcess(websocket, openspaceBaseDir):
 async def websocketServer(stopEvent_main, openspaceBaseDir):
     boundHandler = functools.partial(
         receiveProcess,
-        openspaceBaseDir
+        openspaceBaseDir=openspaceBaseDir
     )
     async with websockets.serve(boundHandler, "localhost", 4699):
         print("WebSocket server started on ws://localhost:4699")
