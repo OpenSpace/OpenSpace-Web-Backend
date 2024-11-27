@@ -170,13 +170,22 @@ def runOpenspace(executable, baseDir, instanceId):
     print(f"Starting OpenSpace ID {instanceId}")
     workingDirectory = os.path.dirname(os.path.normpath(executable))
     sgctConfigFile = os.path.normpath(f"{baseDir}/config/remote_gstreamer_output.json")
-    process = subprocess.Popen(
+    openspaceArgs = ["start"]
+    if os.name == "nt":
+        openspaceArgs.extend(["powershell", "$Host.UI.RawUI.WindowTitle='OpenSpace'; "])
+    else:
+        openspaceArgs.append("gnome-terminal")
+    openspaceArgs.extend(
         [
             os.path.normpath(executable),
             "--config", sgctConfigFile,
             "--profile", "default",
             "--bypassLauncher"
-        ],
+        ]
+    )
+    process = subprocess.Popen(
+        openspaceArgs,
+        shell=True,
         cwd=workingDirectory,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE
@@ -358,10 +367,9 @@ async def webGuiFrontendServer(stopEvent, workingDir):
     Runs until the stopEvent signal is set.
     """
     execPath = os.path.normpath(workingDir)
-    if os.name == "nt":
-        execArgs = ["start", "powershell", "npm", "start"]
-    else:
-        execArgs = ["start", "gnome-terminal", "npm", "start"]
+    execArgs = ["start", "powershell", "npm", "start"]
+    if os.name != "nt":
+        execArgs[1] = "gnome-terminal"
     process = subprocess.Popen(
         execArgs,
         shell=True,
@@ -385,16 +393,12 @@ async def signalingServer(stopEvent, workingDir):
     Runs until the stopEvent signal is set.
     """
     execPath = os.path.normpath(workingDir)
+    execArgs = ["start"]
     if os.name == "nt":
-        execArgs = [
-            "start",
-            "powershell",
-            "$Host.UI.RawUI.WindowTitle='signalingserver'; ",
-            "node",
-            "signalingserver"
-        ]
+        execArgs.extend(["powershell", "$Host.UI.RawUI.WindowTitle='signalingserver'; "])
     else:
-        execArgs = ["start", "gnome-terminal", "node", "signalingserver"]
+        execArgs.append("gnome-terminal")
+    execArgs.extend(["node", "signalingserver"])
     process = subprocess.Popen(
         execArgs,
         shell=True,
