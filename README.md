@@ -4,7 +4,16 @@
 
 Currently only a Windows 10+ system can run as an OpenSpace WebRTC Rendering Server.
 
-After cloning this repository recursively, follow these install & configuration steps.
+### Install Support Software
+1. Download and install [Node.js](https://nodejs.org/en/) and npm if necessary.
+2. Install python if not already installed.
+3. Install python libraries using `pip install`:
+	- openspace-api
+	- websockets
+        - psutil
+
+### Clone this Repository
+`git clone --recursive <github link>`
 
 ### Determine Server IP Address
 Some of the steps below require the server’s IP address. This depends on the network configuration of the server and client:
@@ -20,13 +29,6 @@ The `feature/streaming` branch of this submodule will have been cloned. Create a
 1. Edit the `defaults` object in *src/api/Environment.js* to configure the settings for this server. Set `wsAddress` to the server IP address discussed above. Also set `signalingAddress` to the same IP address, since the signaling server will be running on the same machine. Leave `wsPort` and `signalingPort` at their default settings.
 2. Open a terminal, cd to *OpenSpace-WebGuiFrontend/*. Run `npm install` when running first time, and ensure that there are no errors. You can add the `--legacy-peer-deps` option if there are dependency problems.
 3. Setup the signaling server by opening another terminal, cd to *OpenSpace-WebGuiFrontend/src/signalingserver*, and run `npm install`.
-
-### Install other Software
-1. Download and install [Node.js](https://nodejs.org/en/) and npm if necessary.
-2. Install python if not already installed.
-3. Install python libraries using `pip install`:
-	- openspace-api
-	- websockets
 	
 ### Networking Setup
 - The WebRTC Rendering Server needs to have ports 4680 - 4700, 8443 open; not only on its own firewall but on its parent network(s).
