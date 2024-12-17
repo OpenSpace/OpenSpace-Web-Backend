@@ -57,7 +57,7 @@ A separate API document covers the API and functionality in greater detail.
 OpenSpaceExecRelativeDir = "bin/RelWithDebInfo"
 OpenSpaceCfgRelativeDir = "config"
 Processes = []
-
+RunOpenSpaceInShell = False
 
 class State(Enum):
     # Running state for an OpenSpace instance
@@ -76,6 +76,8 @@ class OsProcess:
     def __init__(self):
         self.state = State.IDLE
         self.handle = None
+        self.pid_OpenSpace = None
+        self.pid_ParentShell = None
         self.stopSignal = None
         self.thread = None
 
@@ -103,6 +105,18 @@ class OsProcess:
     def getHandle(self):
         return self.handle
 
+    def setPidOpenSpace(self, pid):
+        self.pid_OpenSpace = pid
+
+    def pidOpenSpace(self):
+        return self.pid_OpenSpace
+
+    def setPidParentShell(self, pid):
+        self.pid_ParentShell = pid
+
+    def pidParentShell(self):
+        return self.pid_ParentShell
+
     def assignStopSignal(self, signal):
         self.stopSignal = signal
 
@@ -114,6 +128,9 @@ class OsProcess:
 
     def thread(self):
         return self.thread
+
+    def reset(self):
+        self.__init__()
 
 
 def setupArgparse():
@@ -170,19 +187,19 @@ def runOpenspace(executable, baseDir, instanceId):
     print(f"Starting OpenSpace ID {instanceId}")
     workingDirectory = os.path.dirname(os.path.normpath(executable))
     sgctConfigFile = os.path.normpath(f"{baseDir}/config/remote_gstreamer_output.json")
-    openspaceArgs = ["start"]
-    if os.name == "nt":
-        openspaceArgs.extend(["powershell", "$Host.UI.RawUI.WindowTitle='OpenSpace'; "])
-    else:
-        openspaceArgs.append("gnome-terminal")
-    openspaceArgs.extend(
-        [
-            os.path.normpath(executable),
-            "--config", sgctConfigFile,
-            "--profile", "default",
-            "--bypassLauncher"
-        ]
-    )
+    openspaceArgs = []
+    if RunOpenSpaceInShell:
+        openspaceArgs = ["start"]
+        if os.name == "nt":
+            openspaceArgs.extend(["powershell", "$Host.UI.RawUI.WindowTitle='OpenSpace'; "])
+        else:
+            openspaceArgs.append("gnome-terminal")
+    openspaceArgs.extend([
+        os.path.normpath(executable),
+        "--config", sgctConfigFile,
+        "--profile", "default",
+        "--bypassLauncher"
+    ])
     process = subprocess.Popen(
         openspaceArgs,
         shell=True,
@@ -190,8 +207,32 @@ def runOpenspace(executable, baseDir, instanceId):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE
     )
-    Processes[instanceId].setProcessHandle(process)
-
+    if RunOpenSpaceInShell:
+        time.sleep(4) #Wait for it to start OpenSpace
+        Processes[instanceId].setPidOpenSpace(None)
+        Processes[instanceId].setPidParentShell(None)
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                # Check if the process command matches the target
+                if not proc.info:
+                    continue
+                if proc.info['name'].lower() == 'powershell.exe':
+                    parent = psutil.Process(proc.pid)
+                    children = parent.children(recursive=False)
+                    for child in children:
+                        if child.name():
+                            if child.name().lower() == "openspace.exe":
+                                msg = f"Found powershell pid {proc.pid}" \
+                                    f" with OpenSpace.exe child ({child.pid})."
+                                Processes[instanceId].setPidOpenSpace(child.pid)
+                                Processes[instanceId].setPidParentShell(proc.pid)
+                                print(msg)
+                                break
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                print("exception with ps info")
+                pass
+    else:
+        Processes[instanceId].setProcessHandle(process)
     time.sleep(10)
 
     async def mainLoop():
@@ -205,12 +246,23 @@ def runOpenspace(executable, baseDir, instanceId):
     Processes[instanceId].setState(State.RUNNING)
     print(f"OpenSpace ID {instanceId} INITIALIZING -> RUNNING")
 
-    async def waitForInstanceToStop(procHandle):
+    async def waitForInstanceToStopByPid(procPid):
+        while psutil.pid_exists(procPid):
+            await asyncio.sleep(2.0)
+
+    async def waitForInstanceToStopByHandle(procHandle):
         while procHandle.poll() is None:
             await asyncio.sleep(2.0)
 
     # Wait until this OpenSpace instance has stopped (e.g. via the frontend gui)
-    asyncio.new_event_loop().run_until_complete(waitForInstanceToStop(process))
+    if RunOpenSpaceInShell:
+        asyncio.new_event_loop().run_until_complete(
+            waitForInstanceToStopByPid(Processes[instanceId].pidOpenSpace())
+        )
+    else:
+        asyncio.new_event_loop().run_until_complete(
+            waitForInstanceToStopByHandle(process)
+        )
     Processes[instanceId].setState(State.IDLE)
     print(f"OpenSpace ID {instanceId} RUNNING -> IDLE")
 
@@ -272,13 +324,17 @@ async def processMessage(websocket, message, openspaceBaseDir):
                     Processes[idToStop].setState(State.DEINITIALIZING)
                     timer = Timer(5.0, setTimerForDeinitializationPeriod, args=(idToStop,))
                     timer.start()
-                    terminateOpenSpaceInstance(idToStop)
+                    if RunOpenSpaceInShell:
+                        await terminateOpenSpaceInstanceInShell(idToStop)
+                        Processes[idToStop].reset()
+                    else:
+                        terminateOpenSpaceInstance(idToStop)
             else:
                 result['error'] = "invalid id"
                 await sendMessage(websocket, json.dumps(result))
         elif command == "STATUS":
             idForStatus = json_data['id']
-            if idForStatus < len(Processes):
+            if idForStatus < len(Processes) and idForStatus >= 0:
                 result['status'] = Processes[idForStatus].currentStateString()
             else:
                 result['status'] = State.INVALID
@@ -310,6 +366,23 @@ def terminateOpenSpaceInstance(id):
     c = Processes[id].currentState()
     if c == State.INITIALIZING or c == State.RUNNING or c == State.DEINITIALIZING:
         Processes[id].getHandle().kill()
+
+
+async def terminateOpenSpaceInstanceInShell(id):
+    c = Processes[id].currentState()
+    if c == State.INITIALIZING or c == State.RUNNING or c == State.DEINITIALIZING:
+        if Processes[id].pidOpenSpace():
+            p = psutil.Process(Processes[id].pidParentShell())
+            terminateProcessByPid(Processes[id].pidParentShell())
+            p.kill()
+            p.terminate()
+            await asyncio.sleep(2)
+            p = psutil.Process(Processes[id].pidOpenSpace())
+            p.kill()
+            p.terminate()
+        else:
+            print(f"Unable to terminate OpenSpace via its parent shell pid "
+                  f"{Processes[id].pidParentShell()}")
 
 
 async def sendMessage(websocket, message):
@@ -450,11 +523,23 @@ async def terminateProcess(processName, processElems, ignoreElems=[]):
                     if not any(elem in iterProcElem for iterProcElem in iterProcElems):
                         proceedWithTermination = False
             if proceedWithTermination:
-                subprocess.check_output(f"Taskkill /PID {proc.info['pid']} /F")
+                if RunOpenSpaceInShell:
+                    terminateProcessByPid(proc.info['pid'])
+                else:
+                    subprocess.check_output(f"Taskkill /PID {proc.info['pid']} /F")
                 print(f"Terminated {fullName} with PID: {proc.info['pid']}")
                 await asyncio.sleep(0.5) # Give it time to terminate
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
+
+
+def terminateProcessByPid(pidToTerminate):
+    """
+    Terminate a process by its pid. Some processes don't seem to respond to psutil.kill,
+    so this function uses a windows 'Taskkill /PID # /F' command.
+     - `pidToTerminate`: The process pid that will be terminated.
+    """
+    subprocess.check_output(f"Taskkill /PID {pidToTerminate} /F")
 
 
 async def shutdownOnKeypress(stopEvent):
@@ -516,7 +601,11 @@ async def mainAsync(openspaceBaseDir, openspaceFrontendDir, signalingServerDir):
     print("Finished waiting for shutdown_task")
     # Kill any OpenSpace instances that are running
     for i in range(0, len(Processes)):
-        terminateOpenSpaceInstance(i)
+        if RunOpenSpaceInShell:
+            await terminateOpenSpaceInstanceInShell(i)
+            Processes[i].reset()
+        else:
+            terminateOpenSpaceInstance(i)
     await shutdownTaskAndVerify(websocket_task, "websocket server")
     await shutdownTaskAndVerify(webGuiFrontend_task, "webGuiFrontend server")
     await shutdownTaskAndVerify(signalingserver_task, "signaling server")
