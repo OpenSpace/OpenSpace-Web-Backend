@@ -202,11 +202,12 @@ def runOpenspace(executable, baseDir, instanceId):
     ])
     process = subprocess.Popen(
         openspaceArgs,
-        shell=True,
+        shell=RunOpenSpaceInShell,
         cwd=workingDirectory,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE
     )
+
     if RunOpenSpaceInShell:
         time.sleep(4) #Wait for it to start OpenSpace
         Processes[instanceId].setPidOpenSpace(None)
