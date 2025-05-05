@@ -4,3 +4,4 @@
 [submodule "OpenSpace-WebGuiFrontend"]
 	path = OpenSpace-WebGuiFrontend
 	url = https://github.com/OpenSpace/OpenSpace-WebGuiFrontend.git
+	branch = feature/streaming-2024-wss
