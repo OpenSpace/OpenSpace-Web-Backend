@@ -57,7 +57,7 @@ A separate API document covers the API and functionality in greater detail.
 OpenSpaceExecRelativeDir = "bin/RelWithDebInfo"
 OpenSpaceCfgRelativeDir = "config"
 Processes = []
-RunOpenSpaceInShell = False
+RunOpenSpaceInShell = True
 
 class State(Enum):
     # Running state for an OpenSpace instance
@@ -200,6 +200,10 @@ def runOpenspace(executable, baseDir, instanceId):
         "--profile", "default",
         "--bypassLauncher"
     ])
+    print("Running command: ", end="")
+    for a in openspaceArgs:
+        print(f"{a} ", end="")
+    print("")
     process = subprocess.Popen(
         openspaceArgs,
         shell=RunOpenSpaceInShell,
