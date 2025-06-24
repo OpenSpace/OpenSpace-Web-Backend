@@ -1,0 +1,35 @@
+openspaceweb.com {
+    encode gzip
+
+    tls ag9489@nyu.edu
+
+    # Reverse proxy for Flask backend first
+    reverse_proxy /servers/* http://localhost:5000
+    reverse_proxy /instances/* http://localhost:5000
+
+    # WebSocket proxy routes
+    reverse_proxy /ws http://localhost:8080
+    reverse_proxy /4682 http://localhost:8080
+    reverse_proxy /4683 http://localhost:8080
+    reverse_proxy /4684 http://localhost:8080
+    reverse_proxy /4685 http://localhost:8080
+    reverse_proxy /4686 http://localhost:8080
+    reverse_proxy /4687 http://localhost:8080
+    reverse_proxy /4688 http://localhost:8080
+    reverse_proxy /4689 http://localhost:8080
+    reverse_proxy /4690 http://localhost:8080
+    reverse_proxy /8443 http://localhost:8080
+
+    @wsPath path_regexp ^/(468[0-9]|4690|469[1-9]|47[0-8][0-9]|4790|8443)$
+    reverse_proxy @wsPath http://localhost:8080
+
+    # Legacy frontend (if still needed)
+    reverse_proxy /frontend/* http://localhost:4690 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+    }
+
+    # Serve built React app after all API/WebSocket routes
+    root * C:\webrtc\UI-WebRTC\build
+    file_server
+}
