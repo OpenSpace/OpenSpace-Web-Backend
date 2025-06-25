@@ -86,3 +86,8 @@ Video resolution can be set in the `config/remote_gstreamer_output.json` sgct co
 
 The WebRTC streaming version of OpenSpace uses a hardware-accelerated nvidia encoder for h264 video. The configuration pipeline for this encoder can be found in the `pipelineDescription` string of the _apps/OpenSpace/ext/sgct/ext/gstreamer/gstreamerWebRTC.h_ file. There are multiple settings that can be experimented with (including bitrate, preset, etc.) in order to find a balance between streaming performance and video quality.
 
+## Troubleshooting
+
+IPv6 may need to be enabled on *both* machines on the LAN in order for the WebRTC connection to be established between them. In Windows, this setting can be found at "Control Panel > Network and Sharing Center > Connections: (network name)", then Properties, and finally check "Internet Protocol Version 6":
+
+![](troubleshooting-ipv6-screencap.png)
