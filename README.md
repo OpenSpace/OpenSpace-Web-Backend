@@ -91,3 +91,10 @@ The WebRTC streaming version of OpenSpace uses a hardware-accelerated nvidia enc
 IPv6 may need to be enabled on *both* machines on the LAN in order for the WebRTC connection to be established between them. In Windows, this setting can be found at "Control Panel > Network and Sharing Center > Connections: (network name)", then Properties, and finally check "Internet Protocol Version 6":
 
 ![](troubleshooting-ipv6-screencap.png)
+
+Also, ensure that the network is set to PRIVATE:
+
+![image](https://github.com/user-attachments/assets/5680a60d-40da-4cd5-9192-9f2694f6981e)
+
+![image](https://github.com/user-attachments/assets/f348c957-4336-4089-8d03-d7e706090d97)
+
