@@ -86,3 +86,13 @@ Video resolution can be set in the `config/remote_gstreamer_output.json` sgct co
 
 The WebRTC streaming version of OpenSpace uses a hardware-accelerated nvidia encoder for h264 video. The configuration pipeline for this encoder can be found in the `pipelineDescription` string of the _apps/OpenSpace/ext/sgct/ext/gstreamer/gstreamerWebRTC.h_ file. There are multiple settings that can be experimented with (including bitrate, preset, etc.) in order to find a balance between streaming performance and video quality.
 
+#### OpenSpace-WebGuiFrontend (AWS)
+
+For AWS deployments, the frontend may require a manual update to its Node.js dependencies Specifically, modify:
+
+```
+node_modules/webpack-dev-server/client/socket.js
+```
+
+Follow the instructions in this [commit](https://github.com/OpenSpace/OpenSpace-WebGuiFrontend/commit/5590d6e7f4790e5b1682be2f22a49ff72c377e77). This is required due to WebSocket behavior when running behind AWS networking and proxies.
+
